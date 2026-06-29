@@ -760,7 +760,7 @@ function renderAnalytics(){
     <div class="card">
       <div style="font-weight:700;font-size:13px;margin-bottom:10px">🎯 Most Active Bettors <span style="font-size:10px;color:#8B949E;font-weight:400">(all picks including ungraded)</span></div>
       ${mostActivePeople.length===0?`<div style="color:#8B949E;font-size:12px">No picks yet</div>`:mostActivePeople.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #21262D"><span style="color:#00C9A7;font-weight:600;font-size:12px">${esc(p.name)}</span><span style="color:#8B949E;font-size:11px">${p.total} picks</span></div>`).join("")}
-    </div></div>\`;
+    </div></div>`;
 }
 async function dismissDupe(key){if(!settings.dismissedDupes)settings.dismissedDupes=[];settings.dismissedDupes.push(key);await saveSettingsDB();renderAnalytics();}
 
