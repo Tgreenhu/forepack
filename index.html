@@ -221,6 +221,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // ─── INIT ────────────────────────────────────────────────────────
 let sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+window.addEventListener("DOMContentLoaded", () => { initApp(); });
 
 // ─── STATE ───────────────────────────────────────────────────────
 let bets = [], games = [], settings = { level2Password:"forepack2026", level3Password:"superforepack2026", dismissedDupes:[] };
