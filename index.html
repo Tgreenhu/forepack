@@ -55,6 +55,9 @@ tr:hover td{background:#161B2288}
 .spinner{width:24px;height:24px;border:2px solid #21262D;border-top-color:#00C9A7;border-radius:50%;animation:spin .7s linear infinite}
 pre{white-space:pre-wrap;word-break:break-all}
 a{color:#58A6FF}
+.range-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:#21262D;color:#8B949E;transition:all .15s}
+.range-pill.active{background:#00C9A7;color:#0D0F14}
+input[type=date]{color-scheme:dark}
 </style>
 </head>
 <body>
@@ -217,52 +220,14 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 // ═══════════════════════════════════════════════════════════════════
 
 // ─── INIT ────────────────────────────────────────────────────────
-let sb;
-
-// Check if credentials are hardcoded, stored in localStorage, or need to be entered
-let _url = SUPABASE_URL !== "YOUR_SUPABASE_URL" ? SUPABASE_URL : localStorage.getItem("fp_url");
-let _key = SUPABASE_KEY !== "YOUR_SUPABASE_ANON_KEY" ? SUPABASE_KEY : localStorage.getItem("fp_key");
-
-if (!_url || !_key) {
-  document.getElementById("loading-screen").style.display = "none";
-  document.getElementById("setup-screen").style.display = "flex";
-  // Show credential input form at top of setup screen
-  const credForm = document.createElement("div");
-  credForm.style.cssText = "background:#00C9A722;border:2px solid #00C9A7;border-radius:12px;padding:20px;margin-bottom:24px";
-  credForm.innerHTML = `
-    <div style="font-weight:700;color:#00C9A7;font-size:16px;margin-bottom:12px">⚡ Quick Setup — Enter Your Credentials Here</div>
-    <div style="font-size:13px;color:#8B949E;margin-bottom:12px">Already have your Supabase URL and key? Paste them below and click Connect — no file editing needed.</div>
-    <label style="font-size:11px;font-weight:700;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block">Supabase Project URL</label>
-    <input id="cred-url" style="width:100%;background:#0D0F14;border:1px solid #21262D;border-radius:8px;padding:10px 12px;color:#E6EDF3;font-size:13px;margin-bottom:10px" placeholder="https://xxxxxxxxxx.supabase.co"/>
-    <label style="font-size:11px;font-weight:700;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block">Supabase Anon/Public Key</label>
-    <input id="cred-key" style="width:100%;background:#0D0F14;border:1px solid #21262D;border-radius:8px;padding:10px 12px;color:#E6EDF3;font-size:13px;margin-bottom:14px" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."/>
-    <button onclick="connectWithCreds()" style="background:#00C9A7;color:#0D0F14;border:none;border-radius:8px;padding:11px 24px;font-weight:700;font-size:14px;cursor:pointer">Connect →</button>
-    <span id="cred-err" style="color:#F85149;font-size:12px;margin-left:12px;display:none"></span>
-  `;
-  const setupContent = document.querySelector("#setup-screen > div");
-  if (setupContent) setupContent.insertBefore(credForm, setupContent.firstChild);
-} else {
-  sb = supabase.createClient(_url, _key);
-  initApp();
-}
-
-function connectWithCreds() {
-  const url = document.getElementById("cred-url").value.trim();
-  const key = document.getElementById("cred-key").value.trim();
-  const err = document.getElementById("cred-err");
-  if (!url || !url.includes("supabase.co")) { err.textContent = "Invalid URL — must include supabase.co"; err.style.display="inline"; return; }
-  if (!key || key.length < 20) { err.textContent = "Invalid key — paste the full anon/public key"; err.style.display="inline"; return; }
-  localStorage.setItem("fp_url", url);
-  localStorage.setItem("fp_key", key);
-  sb = supabase.createClient(url, key);
-  document.getElementById("setup-screen").style.display = "none";
-  document.getElementById("loading-screen").style.display = "flex";
-  initApp();
-}
+let sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── STATE ───────────────────────────────────────────────────────
 let bets = [], games = [], settings = { level2Password:"forepack2026", level3Password:"superforepack2026", dismissedDupes:[] };
 let role = "level1", currentTab = 0;
+// Restore saved login (discord name + role) from localStorage
+let savedDiscord = localStorage.getItem("fp_discord")||"";
+let savedRole = localStorage.getItem("fp_role")||"level1";
 
 // ─── SUPABASE DB LAYER ───────────────────────────────────────────
 async function dbGetAll(table) {
@@ -324,6 +289,10 @@ async function initApp() {
   } catch(e) { console.error("Init error:", e); }
   document.getElementById("loading-screen").style.display = "none";
   document.getElementById("app").style.display = "flex";
+  // Restore saved login
+  if (savedRole && savedRole !== "level1") {
+    role = savedRole;
+  }
   updateHeader();
   renderTab(0);
 }
@@ -397,10 +366,14 @@ function updateHeader() {
   document.getElementById("admin-btn").style.display=isL3()?"inline":"none";
   const rb=document.getElementById("role-btn");
   const m={level1:{icon:"👁️",label:"Viewer",c:"#8B949E"},level2:{icon:"✏️",label:"Editor",c:"#00C9A7"},level3:{icon:"🔑",label:"Super Admin",c:"#9B4DBB"}}[role];
-  rb.textContent=`${m.icon} ${m.label}`;
+  const dname = localStorage.getItem("fp_discord");
+  rb.textContent=`${m.icon} ${role!=="level1"&&dname?dname:m.label}`;
   rb.style.cssText=`border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:${m.c}22;color:${m.c}`;
 }
-function handleRoleClick() { if(role==="level1")showLoginModal(); else{role="level1";updateHeader();renderTab(currentTab);} }
+function handleRoleClick() {
+  if(role==="level1") showLoginModal();
+  else { role="level1"; localStorage.removeItem("fp_role"); updateHeader(); renderTab(currentTab); }
+}
 
 // ─── MODAL ───────────────────────────────────────────────────────
 function showModal(html, maxWidth=440) {
@@ -410,9 +383,13 @@ function closeModal() { document.getElementById("modal-container").innerHTML="";
 
 // ─── LOGIN ───────────────────────────────────────────────────────
 function showLoginModal() {
+  const savedD = localStorage.getItem("fp_discord")||"";
   showModal(`
     <div style="font-size:17px;font-weight:700;margin-bottom:6px">🔒 Login</div>
-    <div style="font-size:12px;color:#8B949E;margin-bottom:14px">Enter your Level 2 or Level 3 password.</div>
+    <div style="font-size:12px;color:#8B949E;margin-bottom:14px">Enter your Discord name and password. This saves so you stay logged in.</div>
+    <label class="lbl">Discord Name</label>
+    <input id="login-discord" class="inp" placeholder="YourDiscord#1234" style="margin-bottom:10px" value="${savedD}"/>
+    <label class="lbl">Password</label>
     <input id="login-pw" type="password" class="inp" placeholder="Password" style="margin-bottom:8px" onkeydown="if(event.key==='Enter')doLogin()"/>
     <div id="login-err" style="color:#F85149;font-size:12px;margin-bottom:8px;display:none"></div>
     <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -425,14 +402,20 @@ function showLoginModal() {
       <div style="margin-bottom:2px">✏️ <b>Level 2</b> — + manage games, grade &amp; edit picks</div>
       <div>🔑 <b>Level 3</b> — Full control, change passwords (max 3 users)</div>
     </div>`);
-  setTimeout(()=>document.getElementById("login-pw")?.focus(),100);
+  setTimeout(()=>document.getElementById("login-discord")?.focus(),100);
 }
 function doLogin() {
   const pw=document.getElementById("login-pw").value;
+  const discord=document.getElementById("login-discord").value.trim();
   const err=document.getElementById("login-err");
-  if(pw===settings.level3Password){role="level3";closeModal();updateHeader();renderTab(currentTab);return;}
-  if(pw===settings.level2Password){role="level2";closeModal();updateHeader();renderTab(currentTab);return;}
-  err.textContent="Incorrect password.";err.style.display="block";
+  let newRole = null;
+  if(pw===settings.level3Password) newRole="level3";
+  else if(pw===settings.level2Password) newRole="level2";
+  if(!newRole){err.textContent="Incorrect password.";err.style.display="block";return;}
+  role=newRole;
+  if(discord){ localStorage.setItem("fp_discord",discord); savedDiscord=discord; }
+  localStorage.setItem("fp_role",newRole);
+  closeModal();updateHeader();renderTab(currentTab);
 }
 
 // ─── ADMIN PANEL ─────────────────────────────────────────────────
@@ -557,17 +540,33 @@ async function submitPick(){
 // ═══════════════════════════════════════════════════════════════════
 // TAB 2 — HISTORY
 // ═══════════════════════════════════════════════════════════════════
-let histFilters={competition:"",team:"",name:"",date:"",grade:""};
+let histFilters={competition:"",team:"",name:"",dateRange:"today",dateCustom:"",grade:""};
 let histSort={col:"date",dir:"desc"};
 function sortBy(col){histSort.dir=(histSort.col===col&&histSort.dir==="desc")?"asc":"desc";histSort.col=col;renderHistory();}
 function sortIcon(col){if(histSort.col!==col)return`<span style="color:#333;margin-left:2px">⇅</span>`;return histSort.dir==="asc"?`<span style="color:#00C9A7;margin-left:2px">↑</span>`:`<span style="color:#00C9A7;margin-left:2px">↓</span>`;}
+
+function getDateRange(range, custom) {
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
+  if (range==="today") return {start:today,end:today};
+  if (range==="yesterday") { const d=new Date(now); d.setDate(d.getDate()-1); const s=d.toISOString().split("T")[0]; return {start:s,end:s}; }
+  if (range==="week") { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return {start:d.toISOString().split("T")[0],end:today}; }
+  if (range==="lastweek") { const d=new Date(now); d.setDate(d.getDate()-d.getDay()-7); const e=new Date(now); e.setDate(e.getDate()-e.getDay()-1); return {start:d.toISOString().split("T")[0],end:e.toISOString().split("T")[0]}; }
+  if (range==="year") return {start:`${now.getFullYear()}-01-01`,end:today};
+  if (range==="all") return {start:null,end:null};
+  if (range==="custom" && custom) return {start:custom,end:custom};
+  return {start:today,end:today};
+}
+
 function renderHistory(){
   const f=histFilters;
+  const {start,end} = getDateRange(f.dateRange, f.dateCustom);
   let fl=[...bets].filter(b=>{
     if(f.competition&&!b.competition?.toLowerCase().includes(f.competition.toLowerCase()))return false;
     if(f.team&&![b.away,b.home].join(" ").toLowerCase().includes(f.team.toLowerCase()))return false;
     if(f.name&&![b.twitch,b.discord].join(" ").toLowerCase().includes(f.name.toLowerCase()))return false;
-    if(f.date&&!b.date?.startsWith(f.date))return false;
+    if(start&&b.date?.slice(0,10)<start)return false;
+    if(end&&b.date?.slice(0,10)>end)return false;
     if(f.grade==="TBD"&&b.grade)return false;
     if(f.grade&&f.grade!=="TBD"&&b.grade!==f.grade)return false;
     return true;
@@ -610,12 +609,18 @@ function renderHistory(){
         <span style="background:#E3B34122;border:1px solid #E3B34155;color:#E3B341;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">⏳ ${bets.filter(b=>!b.grade).length} ungraded</span>
       </div>
     </div>
-    <div class="card" style="padding:10px;margin-bottom:10px">
-      <div class="grid2" style="gap:7px;margin-bottom:7px">
-        <input class="inp" style="font-size:12px" placeholder="Filter: Competition" value="${esc(f.competition)}" oninput="histFilters.competition=this.value;renderHistory()"/>
-        <input class="inp" style="font-size:12px" placeholder="Filter: Team" value="${esc(f.team)}" oninput="histFilters.team=this.value;renderHistory()"/>
-        <input class="inp" style="font-size:12px" placeholder="Filter: Name" value="${esc(f.name)}" oninput="histFilters.name=this.value;renderHistory()"/>
-        <input class="inp" style="font-size:12px" placeholder="Filter: Date (YYYY-MM-DD)" value="${esc(f.date)}" oninput="histFilters.date=this.value;renderHistory()"/>
+    <div class="card" style="padding:12px;margin-bottom:10px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="ac-wrap"><input id="hist-comp" class="inp" style="font-size:12px" placeholder="🔍 Competition" value="${esc(f.competition)}" oninput="histFilters.competition=this.value;renderHistory()"/><div id="hist-comp-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap"><input id="hist-team" class="inp" style="font-size:12px" placeholder="🔍 Team" value="${esc(f.team)}" oninput="histFilters.team=this.value;renderHistory()"/><div id="hist-team-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap"><input id="hist-name" class="inp" style="font-size:12px" placeholder="🔍 Name" value="${esc(f.name)}" oninput="histFilters.name=this.value;renderHistory()"/><div id="hist-name-drop" class="ac-drop"></div></div>
+      </div>
+      <div style="margin-top:10px;margin-bottom:8px">
+        <div style="font-size:10px;color:#8B949E;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">📅 Date Range</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+          ${[["today","Today"],["yesterday","Yesterday"],["week","This Week"],["lastweek","Last Week"],["year","This Year"],["all","All Time"]].map(([val,lbl])=>`<button class="range-pill ${f.dateRange===val?"active":""}" onclick="histFilters.dateRange='${val}';histFilters.dateCustom='';renderHistory()">${lbl}</button>`).join("")}
+        </div>
+        <input type="date" class="inp" style="font-size:12px;width:180px" value="${f.dateCustom}" onchange="histFilters.dateCustom=this.value;histFilters.dateRange='custom';renderHistory()"/>
       </div>
       <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
         <span style="font-size:10px;color:#8B949E;font-weight:700;text-transform:uppercase;letter-spacing:1px">Show:</span>
@@ -634,6 +639,30 @@ function renderHistory(){
       </tr></thead><tbody>${rows}</tbody></table>
     </div></div>`;
 }
+// Setup autocomplete for history filters
+(function(){
+  const allComps=[...new Set(bets.map(b=>b.competition).filter(Boolean))];
+  const allTeams=[...new Set(bets.flatMap(b=>[b.away,b.home]).filter(Boolean))];
+  const allNames=[...new Set(bets.flatMap(b=>[b.twitch,b.discord]).filter(Boolean))];
+  function setupHistAC(id, suggestions, filterKey) {
+    const input=document.getElementById(id); if(!input)return;
+    const drop=document.getElementById(id+"-drop"); if(!drop)return;
+    function upd(){
+      const val=input.value.toLowerCase();
+      const filtered=suggestions.filter(s=>s&&s.toLowerCase().includes(val));
+      drop.innerHTML=filtered.slice(0,10).map(s=>`<div class="ac-item" data-val="${s.replace(/"/g,'&quot;')}">${s}</div>`).join("");
+      drop.classList.toggle("open",filtered.length>0);
+    }
+    input.addEventListener("input",()=>{histFilters[filterKey]=input.value;renderHistory();upd();});
+    input.addEventListener("focus",upd);
+    drop.addEventListener("mousedown",e=>{const item=e.target.closest(".ac-item");if(!item)return;e.preventDefault();input.value=item.dataset.val;histFilters[filterKey]=item.dataset.val;drop.classList.remove("open");renderHistory();});
+    document.addEventListener("click",e=>{if(!input.contains(e.target)&&!drop.contains(e.target))drop.classList.remove("open");});
+  }
+  setupHistAC("hist-comp",allComps,"competition");
+  setupHistAC("hist-team",allTeams,"team");
+  setupHistAC("hist-name",allNames,"name");
+})();
+
 async function gradebet(id,grade){const bet=bets.find(b=>String(b.id)===id);if(!bet)return;bet.grade=bet.grade===grade?null:grade;await saveBet(bet);updateHeader();renderHistory();}
 function editBet(id){
   const b=bets.find(x=>String(x.id)===id);if(!b)return;
@@ -668,11 +697,25 @@ async function delBet(id){if(!confirm("Delete this pick permanently?"))return;aw
 // ═══════════════════════════════════════════════════════════════════
 // TAB 3 — ANALYTICS
 // ═══════════════════════════════════════════════════════════════════
-let analyticsDay="";
+let analyticsRange="today", analyticsCustom="";
 function renderAnalytics(){
   const graded=bets.filter(b=>b.grade);
   const today=new Date().toISOString().split("T")[0];
-  const dayBets=graded.filter(b=>b.date?.startsWith(analyticsDay||today));
+  const {start:dayStart,end:dayEnd}=getDateRange(analyticsRange,analyticsCustom);
+  const dayBets=graded.filter(b=>{
+    const d=b.date?.slice(0,10)||"";
+    if(dayStart&&d<dayStart)return false;
+    if(dayEnd&&d>dayEnd)return false;
+    return true;
+  });
+
+  // ALL bets (including ungraded) for non-grade stats
+  const allByP={};
+  bets.forEach(b=>{const k=b.twitch||b.discord||"Unknown";if(!allByP[k])allByP[k]={name:k,total:0};allByP[k].total++;});
+  const mostActivePeople=Object.values(allByP).sort((a,b)=>b.total-a.total).slice(0,5);
+  const uniqueBettors=Object.keys(allByP).length;
+
+  // Graded only for W/L stats
   const byP={};graded.forEach(b=>{const k=b.twitch||b.discord||"Unknown";if(!byP[k])byP[k]={name:k,W:0,L:0,D:0,bets:[]};byP[k][b.grade]++;byP[k].bets.push(b);});
   const people=Object.values(byP).map(p=>{const tot=p.W+p.L+p.D;const pl=p.bets.reduce((s,b)=>s+parseFloat(calcPL(b.grade,b.odds)||0),0);return{...p,tot,pl:pl.toFixed(2),wr:tot?((p.W/tot)*100).toFixed(1):0};});
   const byC={};graded.forEach(b=>{if(!byC[b.competition])byC[b.competition]={name:b.competition,pl:0,W:0,L:0,D:0,count:0};byC[b.competition].pl+=parseFloat(calcPL(b.grade,b.odds)||0);byC[b.competition][b.grade]++;byC[b.competition].count++;});
@@ -698,11 +741,11 @@ function renderAnalytics(){
     ${dupeHtml}
     <div class="stats-row">${sc(graded.length,"Graded Bets")}${sc(totWR+"%","Win Rate","#00C9A7")}${sc(`${totW}W/${totL}L/${totD}D`,"Record")}${sc(`${totPL>=0?"+":""}$${totPL.toFixed(2)}`,"Total P/L",plColor(totPL))}${sc(streak,"Streak","#E3B341")}</div>
     <div class="card">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <span style="font-weight:700;font-size:12px">📅 Day Stats</span>
-        <input type="date" class="inp" style="width:160px;font-size:12px" value="${analyticsDay}" onchange="analyticsDay=this.value;renderAnalytics()"/>
-        ${analyticsDay?`<button class="btn btn-ghost" style="padding:5px 10px;font-size:11px" onclick="analyticsDay='';renderAnalytics()">Today</button>`:""}
+      <div style="font-weight:700;font-size:12px;margin-bottom:8px">📅 Period Stats</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">
+        ${[["today","Today"],["yesterday","Yesterday"],["week","This Week"],["lastweek","Last Week"],["year","This Year"],["all","All Time"]].map(([val,lbl])=>`<button class="range-pill ${analyticsRange===val&&!analyticsCustom?"active":""}" onclick="analyticsRange='${val}';analyticsCustom='';renderAnalytics()">${lbl}</button>`).join("")}
       </div>
+      <input type="date" class="inp" style="font-size:12px;width:180px;margin-bottom:10px" value="${analyticsCustom}" onchange="analyticsCustom=this.value;analyticsRange='custom';renderAnalytics()"/>
       <div class="stats-row">${sc(dayBets.length,"Bets")}${sc(`${dayW}W/${dayL}L`,"Record")}${sc(dayBets.length?((dayW/dayBets.length)*100).toFixed(1)+"%":"0%","Win Rate","#00C9A7")}${sc(`${dayPL>=0?"+":""}$${dayPL.toFixed(2)}`,"P/L",plColor(dayPL))}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -713,11 +756,11 @@ function renderAnalytics(){
       <div style="font-weight:700;font-size:13px;margin-bottom:10px">🏟️ Competition Profitability</div>
       ${comps.length===0?`<div style="color:#8B949E;font-size:12px">No data yet</div>`:comps.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #21262D"><div>${badge("#58A6FF",c.name)}<span style="color:#8B949E;font-size:10px;margin-left:7px">${c.count} bets · ${c.W}W/${c.L}L/${c.D}D</span></div><span style="font-weight:700;color:${plColor(c.pl)}">${c.pl>=0?"+":""}$${c.pl.toFixed(2)}</span></div>`).join("")}
     </div>
-    <div class="stats-row">${sc(avgOdds==="—"?"—":avgOdds+"x","Avg Odds","#58A6FF")}${sc(bigWin?bigWin.odds+"x":"—","Biggest Win","#E3B341")}${sc(comps[0]?.name||"—","Top Comp","#00C9A7")}${sc(Object.keys(byP).length,"Unique Bettors")}</div>
+    <div class="stats-row">${sc(avgOdds==="—"?"—":avgOdds+"x","Avg Odds","#58A6FF")}${sc(bigWin?bigWin.odds+"x":"—","Biggest Win","#E3B341")}${sc(comps[0]?.name||"—","Top Comp","#00C9A7")}${sc(uniqueBettors,"Unique Bettors")}</div>
     <div class="card">
-      <div style="font-weight:700;font-size:13px;margin-bottom:10px">🎯 Most Active Bettors</div>
-      ${mostActive.length===0?`<div style="color:#8B949E;font-size:12px">No data yet</div>`:mostActive.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #21262D"><span style="color:#00C9A7;font-weight:600;font-size:12px">${esc(p.name)}</span><span style="color:#8B949E;font-size:11px">${p.tot} picks</span></div>`).join("")}
-    </div></div>`;
+      <div style="font-weight:700;font-size:13px;margin-bottom:10px">🎯 Most Active Bettors <span style="font-size:10px;color:#8B949E;font-weight:400">(all picks including ungraded)</span></div>
+      ${mostActivePeople.length===0?`<div style="color:#8B949E;font-size:12px">No picks yet</div>`:mostActivePeople.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #21262D"><span style="color:#00C9A7;font-weight:600;font-size:12px">${esc(p.name)}</span><span style="color:#8B949E;font-size:11px">${p.total} picks</span></div>`).join("")}
+    </div></div>\`;
 }
 async function dismissDupe(key){if(!settings.dismissedDupes)settings.dismissedDupes=[];settings.dismissedDupes.push(key);await saveSettingsDB();renderAnalytics();}
 
@@ -725,21 +768,21 @@ async function dismissDupe(key){if(!settings.dismissedDupes)settings.dismissedDu
 // TAB 4 — PROFILES
 // ═══════════════════════════════════════════════════════════════════
 function renderProfiles(){
-  const allNames=[...new Set(bets.flatMap(b=>[b.twitch,b.discord].filter(Boolean)))];
+  const allTwitch=[...new Set(bets.map(b=>b.twitch).filter(Boolean))];
   document.getElementById("tab-3").innerHTML=`<div class="page">
     <div style="font-weight:700;font-size:15px;margin-bottom:12px">👤 Bettor Profiles</div>
     <div class="card" style="padding:10px">
       <div style="display:flex;gap:8px">
-        <div class="ac-wrap" style="flex:1"><input id="prof-search" class="inp" placeholder="Search Twitch or Discord name…" onkeydown="if(event.key==='Enter')searchProfile()"/><div id="prof-search-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap" style="flex:1"><input id="prof-search" class="inp" placeholder="Search by Twitch name…" onkeydown="if(event.key==='Enter')searchProfile()"/><div id="prof-search-drop" class="ac-drop"></div></div>
         <button class="btn btn-primary" onclick="searchProfile()">Search</button>
       </div>
     </div>
     <div id="profile-result"></div></div>`;
-  setupAC("prof-search",allNames);
+  setupAC("prof-search",allTwitch);
 }
 function searchProfile(){
   const term=document.getElementById("prof-search")?.value.trim().toLowerCase();if(!term)return;
-  const ub=bets.filter(b=>(b.twitch&&b.twitch.toLowerCase()===term)||(b.discord&&b.discord.toLowerCase()===term));
+  const ub=bets.filter(b=>(b.twitch&&b.twitch.toLowerCase()===term));
   const el=document.getElementById("profile-result");
   if(!ub.length){el.innerHTML=`<div class="card" style="text-align:center;color:#8B949E;padding:28px">No bettor found.</div>`;return;}
   const name=ub[0].twitch||ub[0].discord;
