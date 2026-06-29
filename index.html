@@ -212,19 +212,51 @@ create policy "public write settings" on fp_settings for all using (true);</pre>
 // ═══════════════════════════════════════════════════════════════════
 // ⚙️  CONFIG — PASTE YOUR SUPABASE CREDENTIALS HERE
 // ═══════════════════════════════════════════════════════════════════
-const SUPABASE_URL = "https://wnukobradoupxdjnxens.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndudWtvYnJhZG91cHhkam54ZW5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2MDgwNzUsImV4cCI6MjA5ODE4NDA3NX0.yCerwceCXDJG0beY6lec4jm4t_kLhuEYn643LC92Dko";
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
 // ═══════════════════════════════════════════════════════════════════
 
 // ─── INIT ────────────────────────────────────────────────────────
 let sb;
-const CONFIGURED = SUPABASE_URL !== "https://wnukobradoupxdjnxens.supabase.co";
 
-if (!CONFIGURED) {
+// Check if credentials are hardcoded, stored in localStorage, or need to be entered
+let _url = SUPABASE_URL !== "YOUR_SUPABASE_URL" ? SUPABASE_URL : localStorage.getItem("fp_url");
+let _key = SUPABASE_KEY !== "YOUR_SUPABASE_ANON_KEY" ? SUPABASE_KEY : localStorage.getItem("fp_key");
+
+if (!_url || !_key) {
   document.getElementById("loading-screen").style.display = "none";
   document.getElementById("setup-screen").style.display = "flex";
+  // Show credential input form at top of setup screen
+  const credForm = document.createElement("div");
+  credForm.style.cssText = "background:#00C9A722;border:2px solid #00C9A7;border-radius:12px;padding:20px;margin-bottom:24px";
+  credForm.innerHTML = `
+    <div style="font-weight:700;color:#00C9A7;font-size:16px;margin-bottom:12px">⚡ Quick Setup — Enter Your Credentials Here</div>
+    <div style="font-size:13px;color:#8B949E;margin-bottom:12px">Already have your Supabase URL and key? Paste them below and click Connect — no file editing needed.</div>
+    <label style="font-size:11px;font-weight:700;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block">Supabase Project URL</label>
+    <input id="cred-url" style="width:100%;background:#0D0F14;border:1px solid #21262D;border-radius:8px;padding:10px 12px;color:#E6EDF3;font-size:13px;margin-bottom:10px" placeholder="https://xxxxxxxxxx.supabase.co"/>
+    <label style="font-size:11px;font-weight:700;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block">Supabase Anon/Public Key</label>
+    <input id="cred-key" style="width:100%;background:#0D0F14;border:1px solid #21262D;border-radius:8px;padding:10px 12px;color:#E6EDF3;font-size:13px;margin-bottom:14px" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."/>
+    <button onclick="connectWithCreds()" style="background:#00C9A7;color:#0D0F14;border:none;border-radius:8px;padding:11px 24px;font-weight:700;font-size:14px;cursor:pointer">Connect →</button>
+    <span id="cred-err" style="color:#F85149;font-size:12px;margin-left:12px;display:none"></span>
+  `;
+  const setupContent = document.querySelector("#setup-screen > div");
+  if (setupContent) setupContent.insertBefore(credForm, setupContent.firstChild);
 } else {
-  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb = supabase.createClient(_url, _key);
+  initApp();
+}
+
+function connectWithCreds() {
+  const url = document.getElementById("cred-url").value.trim();
+  const key = document.getElementById("cred-key").value.trim();
+  const err = document.getElementById("cred-err");
+  if (!url || !url.includes("supabase.co")) { err.textContent = "Invalid URL — must include supabase.co"; err.style.display="inline"; return; }
+  if (!key || key.length < 20) { err.textContent = "Invalid key — paste the full anon/public key"; err.style.display="inline"; return; }
+  localStorage.setItem("fp_url", url);
+  localStorage.setItem("fp_key", key);
+  sb = supabase.createClient(url, key);
+  document.getElementById("setup-screen").style.display = "none";
+  document.getElementById("loading-screen").style.display = "flex";
   initApp();
 }
 
