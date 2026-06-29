@@ -323,6 +323,34 @@ function gradeBadge(g) { if (!g) return badge("#8B949E","TBD"); return badge(gra
 function isL2() { return role === "level2" || role === "level3"; }
 function isL3() { return role === "level3"; }
 function uid() { return Date.now() + Math.random(); }
+
+// ─── EST TIME HELPERS ────────────────────────────────────────────
+function nowEST() {
+  // Returns current time as a Date object adjusted to EST/EDT
+  return new Date(new Date().toLocaleString("en-US", {timeZone:"America/New_York"}));
+}
+function toESTDateStr(isoString) {
+  // Convert an ISO string to YYYY-MM-DD in EST
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  return d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"})
+    .split("/").reverse().join("-").replace(/(\d{4})-(\d{2})-(\d{2})/, "$1-$2-$3")
+    // mm/dd/yyyy -> yyyy-mm-dd
+    .replace(/^(\d+)\/(\d+)\/(\d+)$/, "$3-$1-$2");
+}
+function toESTDateStrFromDate(d) {
+  return d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"})
+    .replace(/(\d+)\/(\d+)\/(\d+)/, (_, m, dd, y) => y+"-"+m.padStart(2,"0")+"-"+dd.padStart(2,"0"));
+}
+function displayDateEST(isoString) {
+  // For display: "Jun 28, 2026"
+  if (!isoString) return "—";
+  return new Date(isoString).toLocaleDateString("en-US", {timeZone:"America/New_York", month:"short", day:"numeric", year:"numeric"});
+}
+function nowESTDateStr() {
+  return toESTDateStrFromDate(new Date());
+}
+
 function esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
 
 function levenshtein(a, b) {
@@ -550,13 +578,24 @@ function sortBy(col){histSort.dir=(histSort.col===col&&histSort.dir==="desc")?"a
 function sortIcon(col){if(histSort.col!==col)return`<span style="color:#333;margin-left:2px">⇅</span>`;return histSort.dir==="asc"?`<span style="color:#00C9A7;margin-left:2px">↑</span>`:`<span style="color:#00C9A7;margin-left:2px">↓</span>`;}
 
 function getDateRange(range, custom) {
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
+  // All date comparisons done in EST
+  const today = nowESTDateStr();
+  const estNow = new Date(new Date().toLocaleString("en-US", {timeZone:"America/New_York"}));
   if (range==="today") return {start:today,end:today};
-  if (range==="yesterday") { const d=new Date(now); d.setDate(d.getDate()-1); const s=d.toISOString().split("T")[0]; return {start:s,end:s}; }
-  if (range==="week") { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return {start:d.toISOString().split("T")[0],end:today}; }
-  if (range==="lastweek") { const d=new Date(now); d.setDate(d.getDate()-d.getDay()-7); const e=new Date(now); e.setDate(e.getDate()-e.getDay()-1); return {start:d.toISOString().split("T")[0],end:e.toISOString().split("T")[0]}; }
-  if (range==="year") return {start:`${now.getFullYear()}-01-01`,end:today};
+  if (range==="yesterday") {
+    const d=new Date(estNow); d.setDate(d.getDate()-1);
+    const s=toESTDateStrFromDate(d); return {start:s,end:s};
+  }
+  if (range==="week") {
+    const d=new Date(estNow); d.setDate(d.getDate()-d.getDay());
+    return {start:toESTDateStrFromDate(d),end:today};
+  }
+  if (range==="lastweek") {
+    const d=new Date(estNow); d.setDate(d.getDate()-d.getDay()-7);
+    const e=new Date(estNow); e.setDate(e.getDate()-e.getDay()-1);
+    return {start:toESTDateStrFromDate(d),end:toESTDateStrFromDate(e)};
+  }
+  if (range==="year") return {start:estNow.getFullYear()+"-01-01",end:today};
   if (range==="all") return {start:null,end:null};
   if (range==="custom" && custom) return {start:custom,end:custom};
   return {start:today,end:today};
@@ -569,8 +608,8 @@ function renderHistory(){
     if(f.competition&&!b.competition?.toLowerCase().includes(f.competition.toLowerCase()))return false;
     if(f.team&&![b.away,b.home].join(" ").toLowerCase().includes(f.team.toLowerCase()))return false;
     if(f.name&&![b.twitch,b.discord].join(" ").toLowerCase().includes(f.name.toLowerCase()))return false;
-    if(start&&b.date?.slice(0,10)<start)return false;
-    if(end&&b.date?.slice(0,10)>end)return false;
+    if(start&&(toESTDateStr(b.date)||"")<start)return false;
+    if(end&&(toESTDateStr(b.date)||"")>end)return false;
     if(f.grade==="TBD"&&b.grade)return false;
     if(f.grade&&f.grade!=="TBD"&&b.grade!==f.grade)return false;
     return true;
@@ -593,7 +632,7 @@ function renderHistory(){
     return`<tr>
       ${isL2()?`<td><div style="display:flex;gap:2px">${["W","L","D"].map(g=>`<button class="grade-btn ${b.grade===g?"active-"+g:""}" onclick="gradebet('${b.id}','${g}')">${g}</button>`).join("")}</div></td>`:""}
       <td>${gradeBadge(b.grade)}</td>
-      <td style="color:#8B949E;white-space:nowrap">${new Date(b.date).toLocaleDateString()}</td>
+      <td style="color:#8B949E;white-space:nowrap">${displayDateEST(b.date)}</td>
       <td style="color:#00C9A7;font-weight:600;white-space:nowrap">${esc(b.twitch)}</td>
       <td style="color:#8B949E;font-size:11px;white-space:nowrap">${esc(b.discord)||"—"}</td>
       <td style="white-space:nowrap;font-size:11px">${esc(b.away)} vs ${esc(b.home)}</td>
@@ -704,10 +743,10 @@ async function delBet(id){if(!confirm("Delete this pick permanently?"))return;aw
 let analyticsRange="today", analyticsCustom="";
 function renderAnalytics(){
   const graded=bets.filter(b=>b.grade);
-  const today=new Date().toISOString().split("T")[0];
+  const today=nowESTDateStr();
   const {start:dayStart,end:dayEnd}=getDateRange(analyticsRange,analyticsCustom);
   const dayBets=graded.filter(b=>{
-    const d=b.date?.slice(0,10)||"";
+    const d=toESTDateStr(b.date)||"";
     if(dayStart&&d<dayStart)return false;
     if(dayEnd&&d>dayEnd)return false;
     return true;
@@ -799,7 +838,7 @@ function searchProfile(){
   const bestComp=Object.entries(byC).sort((a,b)=>b[1].pl-a[1].pl)[0];
   const streak=(()=>{const s=[...graded].sort((a,b)=>new Date(b.date)-new Date(a.date));let c=0;for(const b of s){if(b.grade==="W")c++;else break;}return c;})();
   window._profileBlurb={name,W,L,D,wr:winRate,pl:pl.toFixed(2),odds:avgOdds,streak,total:ub.length,graded:graded.length};
-  const recentRows=[...ub].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,15).map(b=>{const p=calcPL(b.grade,b.odds);return`<tr><td style="color:#8B949E;white-space:nowrap">${new Date(b.date).toLocaleDateString()}</td><td style="white-space:nowrap;font-size:11px">${esc(b.away)} vs ${esc(b.home)}</td><td style="font-size:11px">${esc(b.bet)}</td><td style="font-family:monospace;font-size:11px">${esc(b.odds)}</td><td>${gradeBadge(b.grade)}</td><td style="font-weight:700;white-space:nowrap;color:${p===null?"#8B949E":plColor(p)}">${p===null?"—":`${parseFloat(p)>=0?"+":""}$${p}`}</td></tr>`;}).join("");
+  const recentRows=[...ub].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,15).map(b=>{const p=calcPL(b.grade,b.odds);return`<tr><td style="color:#8B949E;white-space:nowrap">${displayDateEST(b.date)}</td><td style="white-space:nowrap;font-size:11px">${esc(b.away)} vs ${esc(b.home)}</td><td style="font-size:11px">${esc(b.bet)}</td><td style="font-family:monospace;font-size:11px">${esc(b.odds)}</td><td>${gradeBadge(b.grade)}</td><td style="font-weight:700;white-space:nowrap;color:${p===null?"#8B949E":plColor(p)}">${p===null?"—":`${parseFloat(p)>=0?"+":""}$${p}`}</td></tr>`;}).join("");
   el.innerHTML=`<div class="card" style="border:1px solid #00C9A744">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">
       <div><div style="font-size:22px;font-weight:800;color:#00C9A7">${esc(name)}</div><div style="color:#8B949E;font-size:11px;margin-top:2px">${ub.length} picks · ${graded.length} graded</div></div>
@@ -923,7 +962,7 @@ function handleCSV(input){
     csvParsed=parsed;
     document.getElementById("csv-errors").innerHTML=errs.length?`<div class="card" style="border-color:#F8514944"><div style="color:#F85149;font-weight:700;margin-bottom:7px">⚠️ ${errs.length} warnings</div>${errs.slice(0,8).map(e=>`<div style="font-size:11px;color:#8B949E">• ${esc(e)}</div>`).join("")}</div>`:"";
     if(!parsed.length)return;
-    const pr=parsed.slice(0,10).map(r=>`<tr><td style="color:#00C9A7;font-weight:600">${esc(r.twitch)}</td><td style="color:#8B949E;font-size:11px">${esc(r.discord)||"—"}</td><td style="font-size:11px">${esc(r.bet)}</td><td style="font-family:monospace;font-size:11px">${esc(r.odds)||"—"}</td><td>${gradeBadge(r.grade)}</td><td style="color:#8B949E;font-size:11px;white-space:nowrap">${r.date?new Date(r.date).toLocaleDateString():"—"}</td></tr>`).join("");
+    const pr=parsed.slice(0,10).map(r=>`<tr><td style="color:#00C9A7;font-weight:600">${esc(r.twitch)}</td><td style="color:#8B949E;font-size:11px">${esc(r.discord)||"—"}</td><td style="font-size:11px">${esc(r.bet)}</td><td style="font-family:monospace;font-size:11px">${esc(r.odds)||"—"}</td><td>${gradeBadge(r.grade)}</td><td style="color:#8B949E;font-size:11px;white-space:nowrap">${r.date?displayDateEST(r.date):"—"}</td></tr>`).join("");
     document.getElementById("csv-preview").innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div style="font-weight:700;font-size:13px">Preview — ${parsed.length} rows</div><div style="font-size:11px;color:#8B949E">Showing first ${Math.min(parsed.length,10)}</div></div><button class="btn btn-primary" style="font-size:12px" onclick="doImport()">Import All →</button></div><div style="overflow-x:auto"><table><thead><tr><th>Twitch</th><th>Discord</th><th>Bet</th><th>Odds</th><th>Grade</th><th>Date</th></tr></thead><tbody>${pr}</tbody></table></div></div>`;
   };
   reader.readAsText(file);
