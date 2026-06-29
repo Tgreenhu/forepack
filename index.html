@@ -330,17 +330,16 @@ function nowEST() {
   return new Date(new Date().toLocaleString("en-US", {timeZone:"America/New_York"}));
 }
 function toESTDateStr(isoString) {
-  // Convert an ISO string to YYYY-MM-DD in EST
   if (!isoString) return "";
   const d = new Date(isoString);
-  return d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"})
-    .split("/").reverse().join("-").replace(/(\d{4})-(\d{2})-(\d{2})/, "$1-$2-$3")
-    // mm/dd/yyyy -> yyyy-mm-dd
-    .replace(/^(\d+)\/(\d+)\/(\d+)$/, "$3-$1-$2");
+  // Returns YYYY-MM-DD in EST
+  const parts = d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"}).split("/");
+  // parts = ["MM", "DD", "YYYY"]
+  return parts[2] + "-" + parts[0] + "-" + parts[1];
 }
 function toESTDateStrFromDate(d) {
-  return d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"})
-    .replace(/(\d+)\/(\d+)\/(\d+)/, (_, m, dd, y) => y+"-"+m.padStart(2,"0")+"-"+dd.padStart(2,"0"));
+  const parts = d.toLocaleDateString("en-US", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit"}).split("/");
+  return parts[2] + "-" + parts[0] + "-" + parts[1];
 }
 function displayDateEST(isoString) {
   // For display: "Jun 28, 2026"
@@ -646,17 +645,17 @@ function renderHistory(){
     </tr>`;}).join("");
   document.getElementById("tab-1").innerHTML=`<div class="page">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:7px">
-      <div style="font-weight:700;font-size:15px">📊 History (${fl.length})</div>
+      <div id="hist-count" style="font-weight:700;font-size:15px">📊 History (${fl.length})</div>
       <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-        ${gf.length?`<span style="font-size:12px;color:#8B949E">${fW}W/${fL}L · <span style="color:${plColor(fPL)};font-weight:700">${fPL>=0?"+":""}$${fPL.toFixed(2)}</span></span>`:""}
+        <span id="hist-summary">${gf.length?`<span style="font-size:12px;color:#8B949E">${fW}W/${fL}L &middot; <span style="color:${plColor(fPL)};font-weight:700">${fPL>=0?"+":""}$${fPL.toFixed(2)}</span></span>`:""}</span>
         <span style="background:#E3B34122;border:1px solid #E3B34155;color:#E3B341;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">⏳ ${bets.filter(b=>!b.grade).length} ungraded</span>
       </div>
     </div>
     <div class="card" style="padding:12px;margin-bottom:10px">
       <div style="display:flex;flex-direction:column;gap:8px">
-        <div class="ac-wrap"><input id="hist-comp" class="inp" style="font-size:12px" placeholder="🔍 Competition" value="${esc(f.competition)}" oninput="histFilters.competition=this.value;renderHistory()"/><div id="hist-comp-drop" class="ac-drop"></div></div>
-        <div class="ac-wrap"><input id="hist-team" class="inp" style="font-size:12px" placeholder="🔍 Team" value="${esc(f.team)}" oninput="histFilters.team=this.value;renderHistory()"/><div id="hist-team-drop" class="ac-drop"></div></div>
-        <div class="ac-wrap"><input id="hist-name" class="inp" style="font-size:12px" placeholder="🔍 Name" value="${esc(f.name)}" oninput="histFilters.name=this.value;renderHistory()"/><div id="hist-name-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap"><input id="hist-comp" class="inp" style="font-size:12px" placeholder="🔍 Competition" value="${esc(f.competition)}" oninput="histFilters.competition=this.value;renderHistoryTable()"/><div id="hist-comp-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap"><input id="hist-team" class="inp" style="font-size:12px" placeholder="🔍 Team" value="${esc(f.team)}" oninput="histFilters.team=this.value;renderHistoryTable()"/><div id="hist-team-drop" class="ac-drop"></div></div>
+        <div class="ac-wrap"><input id="hist-name" class="inp" style="font-size:12px" placeholder="🔍 Name" value="${esc(f.name)}" oninput="histFilters.name=this.value;renderHistoryTable()"/><div id="hist-name-drop" class="ac-drop"></div></div>
       </div>
       <div style="margin-top:10px;margin-bottom:8px">
         <div style="font-size:10px;color:#8B949E;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">📅 Date Range</div>
@@ -679,9 +678,76 @@ function renderHistory(){
         <th style="${ths}" onclick="sortBy('odds')">Odds ${sortIcon("odds")}</th>
         <th style="${ths}" onclick="sortBy('pl')">P/L ${sortIcon("pl")}</th>
         ${isL2()?`<th style="${th}">Actions</th>`:""}
-      </tr></thead><tbody>${rows}</tbody></table>
+      </tr></thead><tbody id="hist-tbody">${rows}</tbody></table>
     </div></div>`;
 }
+// Lightweight re-render - only updates table and summary, preserves input focus
+function renderHistoryTable() {
+  const f=histFilters;
+  const {start,end}=getDateRange(f.dateRange,f.dateCustom);
+  let fl=[...bets].filter(b=>{
+    if(f.competition&&!b.competition?.toLowerCase().includes(f.competition.toLowerCase()))return false;
+    if(f.team&&![b.away,b.home].join(" ").toLowerCase().includes(f.team.toLowerCase()))return false;
+    if(f.name&&![b.twitch,b.discord].join(" ").toLowerCase().includes(f.name.toLowerCase()))return false;
+    if(start&&(toESTDateStr(b.date)||"")<start)return false;
+    if(end&&(toESTDateStr(b.date)||"")>end)return false;
+    if(f.grade==="TBD"&&b.grade)return false;
+    if(f.grade&&f.grade!=="TBD"&&b.grade!==f.grade)return false;
+    return true;
+  });
+  const dir=histSort.dir==="asc"?1:-1;
+  fl.sort((a,b)=>{
+    if(histSort.col==="date")return dir*(new Date(a.date)-new Date(b.date));
+    if(histSort.col==="odds")return dir*(parseFloat(a.odds||0)-parseFloat(b.odds||0));
+    if(histSort.col==="pl")return dir*(parseFloat(calcPL(a.grade,a.odds)||"-999")-parseFloat(calcPL(b.grade,b.odds)||"-999"));
+    if(histSort.col==="grade"){const o={W:0,D:1,L:2};return dir*((o[a.grade]??3)-(o[b.grade]??3));}
+    return dir*(new Date(b.date)-new Date(a.date));
+  });
+  const gf=fl.filter(b=>b.grade);
+  const fW=gf.filter(b=>b.grade==="W").length,fL=gf.filter(b=>b.grade==="L").length;
+  const fPL=gf.reduce((s,b)=>s+parseFloat(calcPL(b.grade,b.odds)||0),0);
+  const sumEl=document.getElementById("hist-summary");
+  if(sumEl) sumEl.innerHTML=gf.length?'<span style="font-size:12px;color:#8B949E">'+fW+'W/'+fL+'L &middot; <span style="color:'+plColor(fPL)+';font-weight:700">'+(fPL>=0?"+":"")+"$"+fPL.toFixed(2)+'</span></span>':"";
+  const cntEl=document.getElementById("hist-count");
+  if(cntEl) cntEl.textContent="History ("+fl.length+")";
+  const tbody=document.getElementById("hist-tbody");
+  if(!tbody)return;
+  if(fl.length===0){tbody.innerHTML='<tr><td colspan="'+(isL2()?10:8)+'" style="padding:22px;text-align:center;color:#8B949E">No bets found</td></tr>';return;}
+  tbody.innerHTML=fl.map(b=>{
+    const pl=calcPL(b.grade,b.odds);
+    const sid=String(b.id);
+    const plStr=pl===null?"—":(parseFloat(pl)>=0?"+":"")+"$"+pl;
+    const plCol=pl===null?"#8B949E":plColor(pl);
+    const gradeBtns=isL2()?["W","L","D"].map(g=>{
+      const cls="grade-btn"+(b.grade===g?" active-"+g:"");
+      return '<button class="'+cls+'" data-bid="'+sid+'" data-g="'+g+'">'+g+"</button>";
+    }).join(""):"";
+    const editBtn=isL2()?'<button style="background:#58A6FF22;border:1px solid #58A6FF55;color:#58A6FF;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:11px;font-weight:700" data-edit="'+sid+'">Edit</button>':"";
+    const delBtn=isL3()?'<button style="background:#F8514922;border:1px solid #F8514955;color:#F85149;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:11px;font-weight:700" data-del="'+sid+'">Del</button>':"";
+    return '<tr>'
+      +(isL2()?'<td><div style="display:flex;gap:2px">'+gradeBtns+'</div></td>':"")
+      +'<td>'+gradeBadge(b.grade)+'</td>'
+      +'<td style="color:#8B949E;white-space:nowrap">'+displayDateEST(b.date)+'</td>'
+      +'<td style="color:#00C9A7;font-weight:600;white-space:nowrap">'+esc(b.twitch)+'</td>'
+      +'<td style="color:#8B949E;font-size:11px;white-space:nowrap">'+(esc(b.discord)||"—")+'</td>'
+      +'<td style="white-space:nowrap;font-size:11px">'+esc(b.away)+' vs '+esc(b.home)+'</td>'
+      +'<td style="max-width:160px;font-size:11px">'+esc(b.bet)+'</td>'
+      +'<td style="font-family:monospace;font-weight:700">'+esc(b.odds)+'</td>'
+      +'<td style="font-weight:700;white-space:nowrap;color:'+plCol+'">'+plStr+'</td>'
+      +(isL2()?'<td><div style="display:flex;gap:3px">'+editBtn+delBtn+'</div></td>':"")
+      +'</tr>';
+  }).join("");
+  // Attach grade/edit/del handlers via event delegation
+  tbody.onclick=function(e){
+    const gb=e.target.closest("[data-bid]");
+    if(gb){gradebet(gb.dataset.bid,gb.dataset.g);return;}
+    const eb=e.target.closest("[data-edit]");
+    if(eb){editBet(eb.dataset.edit);return;}
+    const db=e.target.closest("[data-del]");
+    if(db){delBet(parseFloat(db.dataset.del));return;}
+  };
+}
+
 // Setup autocomplete for history filters
 (function(){
   const allComps=[...new Set(bets.map(b=>b.competition).filter(Boolean))];
