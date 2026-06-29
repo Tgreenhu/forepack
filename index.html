@@ -818,17 +818,60 @@ function searchProfile(){
     <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Match</th><th>Bet</th><th>Odds</th><th>Result</th><th>P/L</th></tr></thead><tbody>${recentRows}</tbody></table></div>
   </div>`;
 }
-async function genBlurb(){
+function genBlurb(){
   const p=window._profileBlurb;if(!p)return;
   const btn=document.getElementById("blurb-btn");if(!btn)return;
-  btn.textContent="Generating…";btn.disabled=true;
-  try{
-    const summary=`Bettor:${p.name}. Total:${p.total}. Graded:${p.graded}. W/L/D:${p.W}/${p.L}/${p.D}. WR:${p.wr}%. P/L:$${p.pl}. AvgOdds:${p.odds}. Streak:${p.streak}.`;
-    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:200,messages:[{role:"user",content:`Write a fun, punchy 2-sentence sports betting profile blurb for a Twitch community leaderboard: ${summary}. Be energetic, like a commentator.`}]})});
-    const data=await res.json();const text=data.content?.find(c=>c.type==="text")?.text||"";
-    const box=document.getElementById("blurb-box");if(box){box.innerHTML=`"${esc(text)}"`;box.style.display="block";}
-  }catch(e){console.error(e);}
-  btn.textContent="✨ AI Blurb";btn.disabled=false;
+  const box=document.getElementById("blurb-box");if(!box)return;
+
+  const pl=parseFloat(p.pl);
+  const odds=parseFloat(p.odds)||0;
+  const positiveProfit = pl >= 0;
+  const highOdds = odds >= 2.0;
+  const name = p.name;
+  const wr = p.wr;
+
+  const lines = {
+    // Positive profit, high odds — funny + complimentary
+    goodGood: [
+      `${name} is out here printing money AND taking risks — ${wr}% win rate at ${odds}x average odds. Absolute unit. Buy this person a drink.`,
+      `${name} doesn't just win, they win BIG. ${odds}x average odds and still in profit? That's not betting, that's an art form.`,
+      `If betting were a job interview, ${name} just walked in, nailed it, and asked for a raise. ${wr}% win rate with spicy odds. Respect.`,
+      `${name} is the rare breed who actually knows what they're doing. High odds, positive returns — someone check if they're psychic.`
+    ],
+    // Positive profit, low odds — funny + calling them out for being safe
+    goodBad: [
+      `${name} is technically profitable… but at ${odds}x average odds, they're basically betting on the sun rising. Safe, boring, but hey — it works.`,
+      `${name} is up on profit but let's be honest, a ${odds}x average odd is just refusing to have fun. Congrats on your extremely cautious success.`,
+      `${name} bets like they've got a mortgage to pay. ${odds}x average odds? Bold of you to call that gambling. Still up though, so who's laughing.`,
+      `${name} has cracked the code: only bet on things that are almost certain. Revolutionary strategy. Truly groundbreaking stuff. Profitable, but boring.`
+    ],
+    // Negative profit, high odds — funny + understanding
+    badGood: [
+      `${name} is down bad but at least they're going down swinging — ${odds}x average odds. Wrong results, right mentality. The bravery is admirable.`,
+      `${name} is losing money but at ${odds}x average odds, they're at least losing it with style. Give it time — high risk, high reward… eventually.`,
+      `${name} hasn't found the profits yet, but ${odds}x average odds means when it clicks, it's going to CLICK. Respect the vision, not the results.`,
+      `Down on the books but up in spirit. ${name} swings for the fences at ${odds}x average odds — one good run and this whole story changes.`
+    ],
+    // Negative profit, low odds — funny + calling them out
+    badBad: [
+      `${name} is somehow losing money while taking ${odds}x average odds. That takes a special kind of talent. Truly remarkable levels of wrongness.`,
+      `${name} is down on profit AND picking chalk at ${odds}x average odds. You're not being safe, you're just being wrong. Incredible.`,
+      `${name} bets like a timid deer and still manages to lose. ${odds}x average odds and negative returns — this is a cry for help. Someone check on them.`,
+      `There's no polite way to say this: ${name} is picking near-certain outcomes and still losing money. ${odds}x average odds, negative P/L — truly one of a kind.`
+    ]
+  };
+
+  const category = positiveProfit && highOdds ? 'goodGood'
+    : positiveProfit && !highOdds ? 'goodBad'
+    : !positiveProfit && highOdds ? 'badGood'
+    : 'badBad';
+
+  const pool = lines[category];
+  const blurb = pool[Math.floor(Math.random() * pool.length)];
+
+  box.textContent = blurb;
+  box.style.display = "block";
+  btn.textContent = "🔄 New Blurb";
 }
 
 // ═══════════════════════════════════════════════════════════════════
