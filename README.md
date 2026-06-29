@@ -1,5 +1,4 @@
 # forepack
 
-- Supabase (card email)
-- Netfly
-- GitHub
+- Supabase (card)
+- - GitHub
